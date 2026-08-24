@@ -79,6 +79,22 @@ mod tests {
     }
 
     #[test]
+    fn rejects_a_request_with_no_target() {
+        // A quoted section with only a verb has no path to extract.
+        let line = r#"1.2.3.4 - - [x] "GET" 200 5"#;
+        assert!(parse_line(line).is_none());
+    }
+
+    #[test]
+    fn ignores_a_non_numeric_trailing_field() {
+        // The user-agent, not a duration — must not be read as one.
+        let line = r#"1.2.3.4 - - [x] "GET /a HTTP/1.1" 200 5 "-" "curl/8.4.0""#;
+        let e = parse_line(line).expect("should parse");
+        assert_eq!(e.duration_ms, None);
+        assert_eq!(e.status, 200);
+    }
+
+    #[test]
     fn rejects_garbage() {
         assert!(parse_line("not a log line at all").is_none());
         assert!(parse_line("").is_none());
