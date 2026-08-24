@@ -1,0 +1,10 @@
+[package]
+name = "logparse"
+version = "0.1.0"
+edition = "2021"
+description = "Streaming log parser that summarises request logs without loading them into memory"
+license = "MIT"
+
+[[bin]]
+name = "logparse"
+path = "src/main.rs"
