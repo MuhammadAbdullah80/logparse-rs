@@ -6,12 +6,14 @@ use std::io::{self, Write};
 
 use crate::parse::Entry;
 
-/// How many rows each "top N" table prints.
-const TOP_N: usize = 10;
+/// Default number of rows each "top N" table prints when `--top` is not given.
+pub const DEFAULT_TOP_N: usize = 10;
 
 /// Running totals over every line seen so far.
 #[derive(Default)]
 pub struct Summary {
+    /// Rows per table; `None` means use `DEFAULT_TOP_N`.
+    top_n: Option<usize>,
     total: u64,
     malformed: u64,
     bytes: u64,
@@ -41,6 +43,16 @@ impl PathStat {
 }
 
 impl Summary {
+    /// Sets how many rows each table prints.
+    pub fn set_top_n(&mut self, n: usize) {
+        self.top_n = Some(n);
+    }
+
+    /// Rows to print per table.
+    fn top(&self) -> usize {
+        self.top_n.unwrap_or(DEFAULT_TOP_N)
+    }
+
     /// Folds one parsed entry into the totals.
     pub fn record(&mut self, e: &Entry) {
         self.total += 1;
@@ -86,14 +98,14 @@ impl Summary {
                 .partial_cmp(&a.1.mean_ms())
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
-        for (path, stat) in paths.iter().take(TOP_N).filter(|(_, s)| s.timed_hits > 0) {
+        for (path, stat) in paths.iter().take(self.top()).filter(|(_, s)| s.timed_hits > 0) {
             writeln!(out, "  {:>8.1}ms  {:>6} hits  {}", stat.mean_ms(), stat.hits, path)?;
         }
 
         writeln!(out, "\nnoisiest clients")?;
         let mut hosts: Vec<_> = self.per_host.iter().collect();
         hosts.sort_by(|a, b| b.1.cmp(a.1));
-        for (host, hits) in hosts.iter().take(TOP_N) {
+        for (host, hits) in hosts.iter().take(self.top()) {
             writeln!(out, "  {:>8}  {}", hits, host)?;
         }
         Ok(())
