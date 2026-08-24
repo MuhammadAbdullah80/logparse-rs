@@ -14,13 +14,29 @@ use parse::parse_line;
 use stats::Summary;
 
 fn main() -> ExitCode {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let mut args: Vec<String> = std::env::args().skip(1).collect();
     if args.iter().any(|a| a == "-h" || a == "--help") {
-        eprintln!("usage: logparse [FILE...]   (reads stdin when no FILE is given)");
+        eprintln!("usage: logparse [--top N] [FILE...]   (reads stdin when no FILE is given)");
         return ExitCode::SUCCESS;
     }
 
     let mut summary = Summary::default();
+
+    // --top N: pull the flag and its value out before treating the rest as paths.
+    if let Some(i) = args.iter().position(|a| a == "--top") {
+        let Some(raw) = args.get(i + 1).cloned() else {
+            eprintln!("logparse: --top requires a value");
+            return ExitCode::FAILURE;
+        };
+        match raw.parse::<usize>() {
+            Ok(n) if n > 0 => summary.set_top_n(n),
+            _ => {
+                eprintln!("logparse: --top expects a positive integer, got '{raw}'");
+                return ExitCode::FAILURE;
+            }
+        }
+        args.drain(i..=i + 1);
+    }
     let result = if args.is_empty() {
         let stdin = io::stdin();
         consume(stdin.lock(), &mut summary)
