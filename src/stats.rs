@@ -112,7 +112,13 @@ impl Summary {
             writeln!(out, "  (no path reached {MIN_HITS} timed requests)")?;
         }
         for (path, stat) in ranked {
-            writeln!(out, "  {:>8.1}ms  {:>6} hits  {}", stat.mean_ms(), stat.hits, path)?;
+            writeln!(
+                out,
+                "  {:>8.1}ms  {:>6} hits  {}",
+                stat.mean_ms(),
+                stat.hits,
+                path
+            )?;
         }
 
         writeln!(out, "\nnoisiest clients")?;
