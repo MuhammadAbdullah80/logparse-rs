@@ -12,7 +12,12 @@ the size of the log, so it handles multi-gigabyte files fine.
 ```sh
 cargo run --release -- /var/log/nginx/access.log
 cat access.log | cargo run --release
+cargo run --release -- --top 25 access.log
 ```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--top N` | `10` | Rows printed in each table |
 
 ## Example output
 
@@ -43,6 +48,16 @@ host - - [ts] "METHOD /path HTTP/1.1" status bytes "referer" "agent" [duration]
 The trailing duration is nginx's `$request_time` in seconds and is optional, so
 plain Apache CLF lines parse too. Lines that do not match are counted as
 malformed rather than aborting the run.
+
+## Design notes
+
+Both tables are bounded by the number of *distinct* paths and hosts, so the
+streaming claim holds: a 20GB log costs the same memory as a 20MB one with the
+same cardinality.
+
+Paths with fewer than five timed requests are excluded from the slowest-paths
+ranking. Without that floor a single 4-second outlier outranks a path serving
+fifty thousand requests at 800ms, which is almost never the row you want.
 
 ## Tests
 
