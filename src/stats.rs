@@ -9,6 +9,11 @@ use crate::parse::Entry;
 /// How many rows each "top N" table prints.
 const TOP_N: usize = 10;
 
+/// Paths with fewer timed hits than this are excluded from the slowest-paths
+/// ranking. A single 4-second outlier otherwise outranks a path serving fifty
+/// thousand requests at 800ms, which is almost never the interesting row.
+const MIN_HITS: u64 = 5;
+
 /// Running totals over every line seen so far.
 #[derive(Default)]
 pub struct Summary {
@@ -86,7 +91,15 @@ impl Summary {
                 .partial_cmp(&a.1.mean_ms())
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
-        for (path, stat) in paths.iter().take(TOP_N).filter(|(_, s)| s.timed_hits > 0) {
+        let ranked: Vec<_> = paths
+            .iter()
+            .filter(|(_, s)| s.timed_hits >= MIN_HITS)
+            .take(TOP_N)
+            .collect();
+        if ranked.is_empty() {
+            writeln!(out, "  (no path reached {MIN_HITS} timed requests)")?;
+        }
+        for (path, stat) in ranked {
             writeln!(out, "  {:>8.1}ms  {:>6} hits  {}", stat.mean_ms(), stat.hits, path)?;
         }
 
@@ -153,6 +166,25 @@ mod tests {
         s.record(&entry("/a", 200, None));
         assert_eq!(s.per_path["/a"].hits, 2);
         assert_eq!(s.per_path["/a"].mean_ms(), 100.0);
+    }
+
+    #[test]
+    fn excludes_paths_below_the_hit_threshold() {
+        let mut s = Summary::default();
+        // One very slow request on /rare, and MIN_HITS fast ones on /common.
+        s.record(&entry("/rare", 200, Some(4000)));
+        for _ in 0..MIN_HITS {
+            s.record(&entry("/common", 200, Some(800)));
+        }
+        let mut out = Vec::new();
+        s.report(&mut out).unwrap();
+        let text = String::from_utf8(out).unwrap();
+        assert!(text.contains("/common"), "frequent path should rank");
+        let slowest = text.split("slowest paths").nth(1).unwrap();
+        assert!(
+            !slowest.contains("/rare"),
+            "single-hit outlier should be excluded from the ranking"
+        );
     }
 
     #[test]
